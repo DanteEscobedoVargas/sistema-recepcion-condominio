@@ -1,58 +1,51 @@
 from abc import ABC, abstractmethod
-from src.seguridad.encriptacion import EncriptadorSeguridad
+import hashlib
 
 class Persona(ABC):
-    def __init__(self, id_persona: str, nombres: str, apellidos: str, dni: str):
-        self._id_persona = id_persona
-        self._nombres = nombres
-        self._apellidos = apellidos
-        # Encapsulamiento estricto: DNI encriptado en atributo privado
-        self.__dni_encrip = EncriptadorSeguridad.hash_dni(dni)
+    def __init__(self, nombre: str, apellido: str = "", dni: str = ""):
+        self._nombre = nombre
+        self._apellido = apellido
+        self._dni_raw = str(dni)
+        self._dni_encrip = self._encriptar_dni(dni)
 
-    def get_nombre_completo(self) -> str:
-        return f"{self._nombres} {self._apellidos}"
+    def _encriptar_dni(self, dni) -> str:
+        return hashlib.sha256(str(dni).encode('utf-8')).hexdigest()
+
+    def validar_documento(self) -> bool:
+        """Valida que el DNI tenga exactamente 8 dígitos numéricos."""
+        return len(self._dni_raw) == 8 and self._dni_raw.isdigit()
+
+    def get_nombre(self) -> str:
+        return f"{self._nombre} {self._apellido}".strip()
 
     def get_dni_encrip(self) -> str:
-        return self.__dni_encrip
+        return self._dni_encrip
 
-    @abstractmethod
-    def validar_documento(self) -> bool:
-        """Método abstracto que valida la integridad del documento en las subclases."""
-        pass
+    def get_dni_raw(self) -> str:
+        """Retorna el DNI en texto plano para consultas autorizadas."""
+        return self._dni_raw
 
 
 class Residente(Persona):
-    def __init__(self, id_persona: str, nombres: str, apellidos: str, dni: str, num_depa: str, es_propietario: bool):
-        super().__init__(id_persona, nombres, apellidos, dni)
+    def __init__(self, nombre: str, apellido: str = "", dni: str = "", num_depa: str = "", es_propietario: bool = True):
+        super().__init__(nombre, apellido, dni)
         self._num_depa = num_depa
         self._es_propietario = es_propietario
 
-    def get_num_depa(self) -> str:
-        return self._num_depa
-
-    def validar_documento(self) -> bool:
-        return len(self.get_dni_encrip()) == 64
-
 
 class Visitante(Persona):
-    def __init__(self, id_persona: str, nombres: str, apellidos: str, dni: str, parentesco_o_vinculo: str):
-        super().__init__(id_persona, nombres, apellidos, dni)
-        self._parentesco_o_vinculo = parentesco_o_vinculo
-
-    def get_parentesco_o_vinculo(self) -> str:
-        return self._parentesco_o_vinculo
-
-    def validar_documento(self) -> bool:
-        return len(self.get_dni_encrip()) == 64
+    def __init__(self, nombre: str, apellido: str = "", dni: str = "", autoriza: str = ""):
+        super().__init__(nombre, apellido, dni)
+        self._autoriza = autoriza
 
 
 class TrabajadorServicio(Persona):
-    def __init__(self, id_persona: str, nombres: str, apellidos: str, dni: str, empresa_servicio: str):
-        super().__init__(id_persona, nombres, apellidos, dni)
-        self._empresa_servicio = empresa_servicio
+    def __init__(self, nombre: str, apellido: str = "", dni: str = "", empresa: str = ""):
+        super().__init__(nombre, apellido, dni)
+        self._empresa = empresa
 
-    def get_empresa_servicio(self) -> str:
-        return self._empresa_servicio
 
-    def validar_documento(self) -> bool:
-        return len(self.get_dni_encrip()) == 64
+class Repartidor(Persona):
+    def __init__(self, nombre: str, apellido: str = "", dni: str = "", empresa_delivery: str = ""):
+        super().__init__(nombre, apellido, dni)
+        self._empresa_delivery = empresa_delivery
