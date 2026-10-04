@@ -1,86 +1,79 @@
-from datetime import datetime
-from functools import reduce
+from src.modelos.departamento import Departamento
+from src.modelos.registro_acceso import RegistroAcceso
 from src.seguridad.encriptacion import EncriptadorSeguridad
-
-class RegistroAcceso:
-    _contador_id = 1
-
-    def __init__(self, persona, depa_destino):
-        self._id_registro = str(RegistroAcceso._contador_id).zfill(3)
-        RegistroAcceso._contador_id += 1
-        self._persona = persona
-        self._depa_destino = depa_destino
-        self._hora_ingreso = "N/A"
-        self._hora_salida = "N/A"
-
-    def get_id_registro(self) -> str:
-        return self._id_registro
-
-    def get_persona(self):
-        return self._persona
-
-    def get_depa_destino(self) -> str:
-        return self._depa_destino
-
-    def get_hora_ingreso(self) -> str:
-        return self._hora_ingreso
-
-    def set_hora_ingreso(self, hora: str):
-        self._hora_ingreso = hora
-
-    def get_hora_salida(self) -> str:
-        return self._hora_salida
-
-    def set_hora_salida(self, hora: str):
-        self._hora_salida = hora
+from src.modelos.persona import Persona
+from copy import deepcopy
 
 
 class GestorRecepcionController:
+    """Singleton y Facade. Propietario de los registros originales de la sesión."""
+
     _instancia = None
 
-    def __init__(self):
-        if hasattr(self, "_inicializado") and self._inicializado:
-            return
-        self._registros = []
-        self._inicializado = True
+    def __new__(cls):
+        if cls._instancia is None:
+            cls._instancia = super().__new__(cls)
+            cls._instancia._registros = []
+        return cls._instancia
 
     @classmethod
     def get_instancia(cls):
-        if cls._instancia is None:
-            cls._instancia = cls()
-        return cls._instancia
+        return cls()
 
-    def registrar_ingreso(self, persona, depa):
-        if hasattr(persona, "validar_documento") and not persona.validar_documento():
-            raise ValueError("El documento (DNI) de la persona no es válido (debe tener 8 dígitos).")
-
-        registro = RegistroAcceso(persona, depa)
+    def registrar_ingreso(self, nombres, apellidos, dni, destino, autoriza, observacion=""):
+        persona = Persona(nombres, apellidos, dni)
+        ticket = str(len(self._registros) + 1).zfill(3)
+        registro = RegistroAcceso(ticket, persona, destino, autoriza, observacion)
         self._registros.append(registro)
-        return registro
+        return deepcopy(registro)
+
+    def registrar_salida(self, ticket, observacion=""):
+        registro = self._buscar_registro(ticket)
+        if registro is None:
+            raise ValueError("No existe un registro con ese ticket.")
+        registro.registrar_salida(observacion)
+        return deepcopy(registro)
 
     def obtener_registros(self):
-        return self._registros
+        # Entregar copias evita modificar los registros originales fuera del gestor.
+        return deepcopy(self._registros)
 
-    def buscar_por_ticket(self, ticket_id: str):
-        """Busca un ticket específico en el sistema por su ID (ej. 001)."""
-        resultados = list(filter(lambda r: r.get_id_registro() == ticket_id.zfill(3), self._registros))
-        return resultados[0] if resultados else None
+    def buscar_por_ticket(self, ticket):
+        registro = self._buscar_registro(ticket)
+        return deepcopy(registro) if registro is not None else None
 
-    def consultar_por_departamento(self, depa):
-        return list(filter(lambda r: str(r.get_depa_destino()) == str(depa), self._registros))
+    def _buscar_registro(self, ticket):
+        ticket = ticket.strip()
+        if not ticket.isascii() or not ticket.isdigit() or int(ticket) < 1:
+            raise ValueError("El ticket debe ser un número positivo, por ejemplo 001.")
+        ticket = str(int(ticket)).zfill(3)
+        for registro in self._registros:
+            if registro.get_ticket() == ticket:
+                return registro
+        return None
 
-    def obtener_hashes_registrados(self):
-        return list(map(lambda r: r.get_persona().get_dni_encrip(), self._registros))
+    def consultar_por_departamento(self, destino):
+        destino = Departamento.validar_codigo(destino)
+        return deepcopy(list(filter(lambda r: r.get_destino() == destino, self._registros)))
 
-    def contar_visitantes_en_condominio(self) -> int:
-        """Uso explícito de reduce() para sumar las visitas actualmente en el edificio."""
-        return reduce(
-            lambda acc, r: acc + (1 if r.get_hora_salida() == "EN CONDOMINIO" else 0),
-            self._registros,
-            0
-        )
+    def contar_visitantes_en_condominio(self):
+        return len(list(filter(lambda r: r.esta_activo(), self._registros)))
 
-    def obtener_registros_protegidos(self, clave_ingresada: str):
-        if not EncriptadorSeguridad.validar_clave_acceso(clave_ingresada):
-            raise PermissionError("Contraseña de administrador incorrecta. Acceso denegado.")
-        return self._registros
+    def obtener_hashes_registrados(self, clave):
+        if not EncriptadorSeguridad.validar_clave_acceso(clave):
+            raise PermissionError("Contraseña incorrecta. Acceso denegado.")
+        return list(map(lambda r: (r.get_ticket(), r.get_persona().get_dni_hash()), self._registros))
+
+    def obtener_registros_protegidos(self, clave):
+        if not EncriptadorSeguridad.validar_clave_acceso(clave):
+            raise PermissionError("Contraseña incorrecta. Acceso denegado.")
+        return self.obtener_registros()
+
+    def consultar_dnis(self, clave):
+        if not EncriptadorSeguridad.validar_clave_acceso(clave):
+            raise PermissionError("Contraseña incorrecta. Acceso denegado.")
+        return [
+            (r.get_ticket(), r.get_persona().get_nombre(),
+             r.get_persona().consultar_dni(clave), r.get_persona().get_dni_hash())
+            for r in self._registros
+        ]

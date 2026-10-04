@@ -1,17 +1,12 @@
-from typing import List
-from src.modelos.persona import Residente
+import re
+
 
 class Departamento:
-    def __init__(self, numero_departamento: str, piso: int):
-        self._numero_departamento = numero_departamento
-        self._piso = piso
-        self._residentes: List[Residente] = []
+    """Cinco torres, pisos 2 al 9 y dos departamentos por piso."""
 
-    def agregar_residente(self, residente: Residente) -> None:
-        self._residentes.append(residente)
-
-    def obtener_residentes(self) -> List[Residente]:
-        return self._residentes
-
-    def get_numero(self) -> str:
-        return self._numero_departamento
+    @staticmethod
+    def validar_codigo(codigo: str) -> str:
+        codigo = codigo.strip().upper()
+        if not re.fullmatch(r"T[1-5]D[2-9]0[12]", codigo):
+            raise ValueError("Destino inválido. Ejemplo: T2D502. Torres 1-5, pisos 2-9, departamentos 01 o 02.")
+        return codigo

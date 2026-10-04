@@ -1,0 +1,13 @@
+Validación realizada: 3 de octubre de 2026
+
+Herramienta: pytest 9.1.1
+Comando desde la carpeta del proyecto: python -m pytest -q --tb=short
+Resultado: 14 passed, 7 subtests passed in 0.32s
+
+También se ejecutó: python -m unittest discover -s tests -v
+Resultado: Ran 14 tests; OK.
+
+Se verifica registro, destinos, tickets, salida, observaciones, Singleton,
+consultas independientes, menú y protección de DNI: cifrado, rechazo de
+clave incorrecta, cambio de contraseña y rechazo de datos cifrados alterados.
+Los casos usan datos ficticios. No sustituyen una auditoría de seguridad.
